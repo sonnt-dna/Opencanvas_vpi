@@ -60,8 +60,9 @@ async function handleRequest(req: NextRequest, method: string) {
       `${LANGGRAPH_API_URL}/${path}${queryString}`,
       options
     );
-
+    // console.log("ERROR", res);
     if (res.status >= 400) {
+      
       console.error("ERROR IN PROXY", res.status, res.statusText);
       return new Response(res.body, {
         status: res.status,

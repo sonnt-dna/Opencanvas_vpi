@@ -30,7 +30,7 @@ export const updateHighlightedText = async (
   state: typeof OpenCanvasGraphAnnotation.State
 ): Promise<OpenCanvasGraphReturnType> => {
   const model = new ChatOpenAI({
-    model: "gpt-4o",
+    model: "gpt-4o-mini",
     temperature: 0,
   }).withConfig({ runName: "update_highlighted_markdown" });
 

@@ -1,0 +1,75 @@
+:root {
+  --main-area-height: calc(100vh - 110px);
+}
+
+footer {
+  display: none !important;
+}
+
+::-webkit-scrollbar {
+  background: var(--background-fill-primary);
+}
+::-webkit-scrollbar-thumb {
+  background-color: var(--border-color-primary);
+  border: 4px solid transparent;
+  border-radius: 100px;
+  background-clip: content-box;
+}
+
+.gradio-container {
+  max-width: 100% !important;
+}
+
+.header-bar {
+  background-color: transparent;
+  margin: 0px 0px 20px;
+  overflow-x: scroll;
+  display: block !important;
+  text-wrap: nowrap;
+  border: none;
+}
+
+.header-bar button.selected {
+  border: none;
+}
+
+button.selected {
+  color: var(--block-label-text-color);
+  font-weight: bold;
+}
+
+#chat-tab, #indices-tab, #settings-tab, #help-tab, #resources-tab, #login-tab {
+  border: none !important;
+}
+
+#main-chat-bot {
+  background: var(--background-fill-primary);
+  flex: auto;
+}
+
+#chat-area {
+  height: var(--main-area-height) !important;
+}
+
+#chat-info-panel {
+  max-height: var(--main-area-height) !important;
+  overflow: auto !important;
+}
+
+#conv-settings-panel {
+  max-height: var(--main-area-height) !important;
+  flex-wrap: unset;
+  overflow-y: scroll !important;
+  position: sticky;
+}
+
+.clpse {
+  background-color: var(--background-fill-secondary);
+  font-weight: bold;
+  cursor: pointer;
+  padding: 3px;
+  width: 100%;
+  border: none;
+  text-align: left;
+  outline: none;
+}
