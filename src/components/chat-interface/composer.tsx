@@ -46,7 +46,7 @@ export const Composer: FC = () => {
     setError(null);
     
     try {
-      const dbPath = "/Users/NguyenTrungSon/Downloads/kotaemon-main/ktem_app_data/user_data/sql.db";
+      const dbPath = "../kotaemon/ktem_app_data/user_data/sql.db";
       const url = "http://localhost:5006/get-file-ids";
       
       console.log("2. Making API call to:", url);
