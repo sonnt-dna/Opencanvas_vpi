@@ -240,6 +240,9 @@ Use this context about the application and its features when determining where t
 ${APP_CONTEXT}
 
 Your options are as follows:
+<finalMessage>
+{finalMessage}
+</finalMessage>
 <options>
 {artifactOptions}
 </options>

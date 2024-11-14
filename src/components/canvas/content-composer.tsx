@@ -29,6 +29,11 @@ export interface ContentComposerChatInterfaceProps {
     language?: ProgrammingLanguageOptions
   ) => void;
 }
+function getCookie(name: string): string | null {
+  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+  if (match) return decodeURIComponent(match[2]);
+  return null;
+}
 
 export function ContentComposerChatInterfaceComponent(
   props: ContentComposerChatInterfaceProps
@@ -40,40 +45,98 @@ export function ContentComposerChatInterfaceComponent(
   const [isRunning, setIsRunning] = useState(false);
 
   async function onNew(message: AppendMessage): Promise<void> {
+    let cleanedhtml = "";
+
+    // get cookie file_ids
+    const fileIds = getCookie("file_ids");
+    if (fileIds) {
+      // giải mã utf-8 
+      const decodedFileIds = decodeURIComponent(fileIds);
+      console.log('decodedFileIds:', decodedFileIds);
+      try {
+        const fileIds = [decodedFileIds];
+        console.log('Selected file ID:', fileIds);
+   
+        const response = await fetch('http://localhost:5006/getfile', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ file_ids: fileIds })
+        });
+   
+        if (response.ok) {
+          const data = await response.json();
+          console.log('API Response:', data);
+          console.log('Cleaned HTML:', data.cleaned_html);
+          cleanedhtml = data.cleaned_html;
+        } else {
+          const errorData = await response.json();
+          console.error('API Error:', errorData.error || 'Không xác định');
+        }
+      } catch (error) {
+        console.error('Error details:', error);
+      }
+    }
+
+    console.log('onNew called with message:', message);
+    
     if (!userData.user) {
+      console.log('No user found');
       toast({
-        title: "User not found",
+        title: "User not found", 
         variant: "destructive",
         duration: 5000,
       });
       return;
     }
 
-    if (message.content?.[0]?.type !== "text") {
+    const messageText = message.content.find(
+      (part) => part.type === "text"
+    )?.text;
+    console.log('Extracted message text:', messageText);
+
+    console.log('message in onNew:', message);
+
+    if (!messageText) {
+      console.log('No text content found in message');
       toast({
         title: "Only text messages are supported",
-        variant: "destructive",
+        variant: "destructive", 
         duration: 5000,
       });
       return;
     }
+
     props.setChatStarted(true);
     setIsRunning(true);
 
     try {
       const humanMessage = new HumanMessage({
-        content: message.content[0].text,
+        content: messageText,
         id: uuidv4(),
       });
+      console.log('Created human message:', humanMessage);
 
       setMessages((prevMessages) => [...prevMessages, humanMessage]);
+      const convertedMessage = convertToOpenAIFormat(humanMessage);
+      console.log('Converted message format:', convertedMessage);
+      
+      if (cleanedhtml) {
+        console.log('Found cleaned HTML:', cleanedhtml);
+        convertedMessage.content = `${cleanedhtml}\n\n${messageText}`;
+      } else {
+        convertedMessage.content = `Hãy gọi tôi là Phương\n\n${messageText}`;
+      }
+      console.log('Final message to stream:', convertedMessage);
 
       await streamMessage({
-        messages: [convertToOpenAIFormat(humanMessage)],
+        messages: [convertedMessage],
       });
+    } catch (error) {
+      console.error('Error in onNew:', error);
     } finally {
       setIsRunning(false);
-      // Re-fetch threads so that the current thread's title is updated.
       await getUserThreads(userData.user.id);
     }
   }

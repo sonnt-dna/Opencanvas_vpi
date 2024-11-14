@@ -1,9 +1,12 @@
 "use client";
 
 import { ComposerPrimitive, ThreadPrimitive } from "@assistant-ui/react";
-import { type FC, useEffect, useState, useCallback } from "react";
+import { type FC, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { UploadIcon } from "lucide-react";  // hoặc icon tương tự từ thư viện của bạn
+import { TooltipIconButton } from "@/components/ui/assistant-ui/tooltip-icon-button";
+import { SendHorizontalIcon, UploadIcon, FileIcon, CircleStopIcon } from "lucide-react";
+import { useFiles } from '@/hooks/useFiles';
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,142 +14,100 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-import { TooltipIconButton } from "@/components/ui/assistant-ui/tooltip-icon-button";
-import { SendHorizontalIcon, PaperclipIcon } from "lucide-react";
-import { FileIcon } from "lucide-react"; 
+// Thêm constant cho cookie name
+const FILE_IDS_COOKIE = "file_ids";
 
-import { promisify } from 'util';
-import { NextResponse } from 'next/server';
-import { useFiles } from '@/hooks/useFiles';
+// Thêm hàm này trước component Composer
+function getCookie(name: string): string | null {
+  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+  if (match) return decodeURIComponent(match[2]);
+  return null;
+}
 
-const CircleStopIcon = () => {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 16 16"
-      fill="currentColor"
-      width="16"
-      height="16"
-    >
-      <rect width="10" height="10" x="3" y="3" rx="2" />
-    </svg>
-  );
-};
+// Và thêm hàm setCookie để sử dụng cùng
+function setCookie(name: string, value: string, options: { expires?: number } = {}) {
+  let cookie = `${name}=${encodeURIComponent(value)}`;
+  if (options.expires) {
+    const d = new Date();
+    d.setTime(d.getTime() + (options.expires * 24 * 60 * 60 * 1000));
+    cookie += `;expires=${d.toUTCString()}`;
+  }
+  document.cookie = cookie + ";path=/";
+}
 
 export const Composer: FC = () => {
+  const [cleanedHtml, setCleanedHtml] = useState<string>("");
+  const [inputValue, setInputValue] = useState<string>("");
   const {
     files,
     selectedFiles,
     isLoading,
-    error,
     fetchFiles,
     selectFile,
     removeFile,
     clearSelectedFiles
   } = useFiles();
 
+  // Load file IDs from cookies when component mounts
   useEffect(() => {
-    if (selectedFiles.length > 0) {
-      const selectedFileIds = selectedFiles.map(file => file.file_id);
-      console.log('Selected file IDs:', selectedFileIds);
+    const savedFileIds = getCookie(FILE_IDS_COOKIE);
+    if (savedFileIds) {
+      const fileIds = JSON.parse(savedFileIds);
+      fileIds.forEach((fileId: string) => {
+        const file = files.find(f => f.file_id === fileId);
+        if (file) {
+          selectFile(file);
+        }
+      });
     }
+  }, [files]);
+
+  // Save file IDs to cookies whenever selectedFiles changes
+  useEffect(() => {
+    const fileIds = selectedFiles.map(file => file.file_id);
+    setCookie(FILE_IDS_COOKIE, JSON.stringify(fileIds), {
+      expires: 7 // Lưu trong 7 ngày
+    });
   }, [selectedFiles]);
 
-  const handleSend = useCallback(async (message: string) => {
-    try {
-      const fileIds = selectedFiles.map(file => file.file_id);
-      console.log('Selected file IDs:', fileIds);
-
-      const requestData = {
-        data: [
-          [
-            message || "Cho tôi biết nội dung của file này",
-            null
-          ]
-        ],
-        fn_index: 0,
-        file_ids: fileIds
-      };
-      
-      console.log('Request data:', requestData);
-
-      const response = await fetch('http://localhost:7860/chat_fn', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify(requestData)
-      });
-
-      console.log('Response status:', response.status);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('API Error:', errorText);
-        throw new Error('Network response was not ok');
-      }
-
-      const result = await response.json();
-      console.log('API Response:', result);
-
-      clearSelectedFiles();
-    } catch (error) {
-      console.error('Error details:', error);
-    }
-  }, [selectedFiles, clearSelectedFiles]);
-
   const handleFileSelect = async (file: any) => {
+    console.log('File selected:', file);
     selectFile(file);
     
     try {
       const fileIds = [file.file_id];
       console.log('Selected file ID:', fileIds);
-
-      const requestData = {
-        data: [
-          [
-            "Cho tôi biết nội dung của file này",
-            null,
-          ],
-          "select",
-          fileIds
-        ],
-        fn_index: 0,
-        session_hash: Math.random().toString(36).substring(7),
-      };
-      
-      console.log('Request data:', requestData);
-
-      const response = await fetch('http://localhost:7860/chat_fn/run', {
+ 
+      const response = await fetch('http://localhost:5006/getfile', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(requestData)
+        body: JSON.stringify({ file_ids: fileIds })
       });
-
-      const result = await response.json();
-      console.log('Job started:', result);
-
-      const pollResult = async (jobId: string) => {
-        const statusResponse = await fetch(`http://localhost:7860/chat_fn/status/${jobId}`);
-        const status = await statusResponse.json();
-        
-        if (status.done) {
-          console.log('Final result:', status.outputs?.[status.outputs.length - 1]);
-        } else {
-          setTimeout(() => pollResult(jobId), 100); // Poll every 100ms
-        }
-      };
-
-      if (result.job) {
-        pollResult(result.job);
+ 
+      if (response.ok) {
+        const data = await response.json();
+        console.log('API Response:', data);
+        console.log('Cleaned HTML:', data.cleaned_html);
+        setCleanedHtml(data.cleaned_html);
+      } else {
+        const errorData = await response.json();
+        console.error('API Error:', errorData.error || 'Không xác định');
       }
-
     } catch (error) {
-      console.error('Error:', error);
+      console.error('Error details:', error);
     }
+  };
+
+  const handleRemoveFile = (fileId: string) => {
+    removeFile(fileId);
+    // Cập nhật lại cookies khi xóa file
+    const currentFileIds = JSON.parse(getCookie(FILE_IDS_COOKIE) || '[]');
+    const newFileIds = currentFileIds.filter((id: string) => id !== fileId);
+    setCookie(FILE_IDS_COOKIE, JSON.stringify(newFileIds), {
+      expires: 7
+    });
   };
 
   return (
@@ -159,15 +120,15 @@ export const Composer: FC = () => {
       >
         <UploadIcon className="text-green-500" />
       </TooltipIconButton>
-
+ 
       <div className="flex flex-wrap gap-2 mx-2">
         {selectedFiles.map((file) => (
-          <div 
+          <div
             key={file.file_id}
             className="flex items-center gap-1 bg-gray-100 rounded-md px-2 py-1 text-xs"
           >
             <span className="text-gray-600">{file.name}</span>
-            <button 
+            <button
               onClick={() => removeFile(file.file_id)}
               className="text-gray-400 hover:text-gray-600 ml-1"
             >
@@ -176,7 +137,7 @@ export const Composer: FC = () => {
           </div>
         ))}
       </div>
-
+ 
       <ComposerPrimitive.Input
         autoFocus
         placeholder="Write a message..."
@@ -211,11 +172,11 @@ export const Composer: FC = () => {
             ) : files.length > 0 ? (
               <div className="max-h-[200px] overflow-y-auto">
                 {files.map((file, index) => (
-                  <DropdownMenuItem 
-                    key={index} 
+                  <DropdownMenuItem
+                    key={index}
                     className={`flex items-center gap-2 py-2 ${
-                      selectedFiles.some(f => f.file_id === file.file_id) 
-                        ? 'bg-gray-100' 
+                      selectedFiles.some(f => f.file_id === file.file_id)
+                        ? 'bg-gray-100'
                         : ''
                     }`}
                     onClick={() => handleFileSelect(file)}
@@ -236,7 +197,7 @@ export const Composer: FC = () => {
           </div>
         </DropdownMenuContent>
       </DropdownMenu>
-
+ 
       <Button
         variant="default"
         className="my-2.5 size-8 p-2"
@@ -245,7 +206,6 @@ export const Composer: FC = () => {
           const messageInput = document.querySelector('.composer-root textarea');
           const message = (messageInput as HTMLTextAreaElement)?.value?.trim() || '';
           console.log('Message:', message);
-          handleSend(message);
           if (messageInput) {
             (messageInput as HTMLTextAreaElement).value = '';
           }
